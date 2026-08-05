@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arquitectura - Catálogo de Obras</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container header-content">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6"/>
+        </svg>
+        <h1 class="brand-title">Catálogo de Arquitectura</h1>
+      </div>
+      <div class="header-actions">
+        <button id="toggleEditMode" class="btn btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <span class="btn-label">Modo Edición</span>
+        </button>
+        <button id="addObraBtn" class="btn btn-primary hidden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span class="btn-label">Nueva Obra</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <section class="search-section">
+    <div class="container">
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Buscar obras por nombre, lugar, autor o detalles...">
+      </div>
+
+      <div class="filters-panel" id="filtersPanel">
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label class="filter-label">Nombre</label>
+            <input type="text" id="filterNombre" class="filter-input" placeholder="Filtrar por nombre">
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Lugar</label>
+            <input type="text" id="filterLugar" class="filter-input" placeholder="Filtrar por lugar">
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Autor</label>
+            <input type="text" id="filterAutor" class="filter-input" placeholder="Filtrar por autor">
+          </div>
+
+          <div class="filter-group filter-year">
+            <label class="filter-label">Año <span class="filter-sub">(<span id="yearRangeLabel">todos</span>)</span></label>
+            <div class="year-controls">
+              <label class="toggle-wrap">
+                <input type="checkbox" id="yearToggle">
+                <span>Intervalo</span>
+              </label>
+              <div class="year-inputs" id="yearInputsSingle">
+                <input type="number" id="filterYearSingle" class="filter-input" placeholder="Año" min="0" max="9999">
+              </div>
+              <div class="year-inputs hidden" id="yearInputsRange">
+                <input type="number" id="filterYearFrom" class="filter-input" placeholder="Desde" min="0" max="9999">
+                <span class="year-sep">–</span>
+                <input type="number" id="filterYearTo" class="filter-input" placeholder="Hasta" min="0" max="9999">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-group filter-tags">
+          <label class="filter-label">Tipo de edificio (Etiquetas)</label>
+          <div class="tag-filter-list" id="tagFilterList">
+            <span class="empty-tags">Cargando etiquetas...</span>
+          </div>
+        </div>
+
+        <div class="filters-actions">
+          <button id="clearFilters" class="btn btn-ghost">Limpiar filtros</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="results-info" id="resultsInfo">
+        <span>Cargando obras...</span>
+      </div>
+      <div class="obras-grid" id="obrasGrid">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Cargando catálogo...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal" id="obraModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-dialog modal-lg" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Nueva Obra</h2>
+        <button class="modal-close" data-close-modal aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <form id="obraForm" class="modal-body">
+        <input type="hidden" id="obraId">
+
+        <div class="form-grid">
+          <div class="form-group col-span-2">
+            <label for="inputNombre" class="form-label">Nombre <span class="required">*</span></label>
+            <input type="text" id="inputNombre" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Fecha <span class="required">*</span></label>
+            <div class="year-range-inputs">
+              <div>
+                <label class="sub-label">Año inicio</label>
+                <input type="number" id="inputFechaInicio" class="form-input" placeholder="Ej: 1920" required min="0" max="9999">
+              </div>
+              <div>
+                <label class="sub-label">Año fin</label>
+                <input type="number" id="inputFechaFin" class="form-input" placeholder="Ej: 1925" min="0" max="9999">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inputLugar" class="form-label">Lugar <span class="required">*</span></label>
+            <input type="text" id="inputLugar" class="form-input" placeholder="Ciudad, País" required>
+          </div>
+
+          <div class="form-group col-span-2">
+            <label for="inputAutor" class="form-label">Autor / Arquitecto <span class="required">*</span></label>
+            <input type="text" id="inputAutor" class="form-input" required>
+          </div>
+
+          <div class="form-group col-span-2">
+            <label for="inputDetalles" class="form-label">Detalles</label>
+            <textarea id="inputDetalles" class="form-input form-textarea" rows="5" placeholder="Descripción de la obra, estilo, materiales..."></textarea>
+          </div>
+
+          <div class="form-group col-span-2">
+            <label class="form-label">Etiquetas</label>
+            <div class="tag-manager">
+              <div class="tag-create">
+                <input type="text" id="newTagInput" class="form-input" placeholder="Nueva etiqueta...">
+                <button type="button" id="createTagBtn" class="btn btn-outline">Crear</button>
+              </div>
+              <div class="tag-select-list" id="tagSelectList">
+                <span class="empty-tags">No hay etiquetas. Crea una arriba.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group col-span-2">
+            <label class="form-label">Archivos adjuntos</label>
+            <div class="file-uploader" id="fileUploader">
+              <input type="file" id="fileInput" multiple class="file-input-hidden">
+              <button type="button" id="browseFilesBtn" class="btn btn-outline">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Seleccionar archivos
+              </button>
+              <span class="file-hint">Imágenes se mostrarán en galería. PDF, CAD y otros archivos se podrán descargar.</span>
+            </div>
+            <div class="file-list" id="fileListPending">
+            </div>
+            <div class="file-list" id="fileListExisting">
+            </div>
+          </div>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>
+        <button type="button" class="btn btn-primary" id="saveObraBtn">Guardar obra</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="detailModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-dialog modal-xl" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="detailTitle">Detalle de Obra</h2>
+        <button class="modal-close" data-close-modal aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" id="detailBody">
+      </div>
+      <div class="modal-footer" id="detailFooter">
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/database.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
