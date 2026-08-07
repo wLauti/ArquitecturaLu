@@ -131,9 +131,10 @@
     state.formRemovedExistingFileIds = new Set();
     state.formSelectedTagIds = new Set();
     state.formOriginalTagIds = new Set();
+    state.formMiniaturaRef = null;
     state.editingObraId = null;
-    renderPendingFiles([]);
-    renderExistingFiles([]);
+    renderPendingFiles([], null);
+    renderExistingFiles([], null);
     renderTagSelectList(state.etiquetas, new Set());
   }
 
@@ -158,7 +159,13 @@
     $('#inputDetalles').value = obra.detalles || '';
 
     state.formExistingFiles = [...(obra.archivos || [])];
-    renderExistingFiles(state.formExistingFiles);
+    if (obra.miniatura_archivo_id) {
+      state.formMiniaturaRef = { existing: true, id: obra.miniatura_archivo_id };
+    } else {
+      state.formMiniaturaRef = null;
+    }
+    renderExistingFiles(state.formExistingFiles, state.formMiniaturaRef);
+    renderPendingFiles(state.formPendingFiles, state.formMiniaturaRef);
 
     const tagIds = new Set((obra.etiquetas || []).map(t => t.id));
     state.formSelectedTagIds = new Set(tagIds);
@@ -227,7 +234,8 @@
           { ...payload, etiquetas: etiquetasToAdd },
           etiquetasToRemove,
           Array.from(state.formRemovedExistingFileIds),
-          newUploaded
+          newUploaded,
+          state.formMiniaturaRef
         );
         showToast('Obra actualizada correctamente', 'success');
       } else {
@@ -243,10 +251,23 @@
             payload,
             [],
             [],
-            uploaded
+            uploaded,
+            state.formMiniaturaRef
           );
         } else {
-          saved = obraCreada;
+          if (state.formMiniaturaRef) {
+            await Database.updateObra(
+              obraCreada.id,
+              payload,
+              [],
+              [],
+              [],
+              state.formMiniaturaRef
+            );
+            saved = (await Database.getAllObras()).find(o => o.id === obraCreada.id);
+          } else {
+            saved = obraCreada;
+          }
         }
         showToast('Obra creada correctamente', 'success');
       }
@@ -287,7 +308,7 @@
         state.formPendingFiles.push(f);
       }
     });
-    renderPendingFiles(state.formPendingFiles);
+    renderPendingFiles(state.formPendingFiles, state.formMiniaturaRef);
   }
 
   function bindUI() {
@@ -387,19 +408,59 @@
     $('#fileUploader').addEventListener('drop', e => { e.preventDefault(); adjuntarArchivos(e.dataTransfer.files); });
 
     $('#fileListPending').addEventListener('click', e => {
+      const thumbBtn = e.target.closest('[data-set-thumb]');
+      if (thumbBtn) {
+        const [kind, idOrIndex] = String(thumbBtn.dataset.setThumb).split(':');
+        if (state.formMiniaturaRef && !state.formMiniaturaRef.existing &&
+            Number(state.formMiniaturaRef.pendingIndex) === Number(idOrIndex)) {
+          state.formMiniaturaRef = null;
+        } else {
+          state.formMiniaturaRef = { existing: false, pendingIndex: Number(idOrIndex) };
+        }
+        renderPendingFiles(state.formPendingFiles, state.formMiniaturaRef);
+        renderExistingFiles(state.formExistingFiles, state.formMiniaturaRef);
+        return;
+      }
       const btn = e.target.closest('[data-remove-pending]');
       if (!btn) return;
       const i = Number(btn.dataset.removePending);
+      const wasMini = state.formMiniaturaRef && !state.formMiniaturaRef.existing &&
+                      Number(state.formMiniaturaRef.pendingIndex) === i;
       state.formPendingFiles.splice(i, 1);
-      renderPendingFiles(state.formPendingFiles);
+      if (wasMini) state.formMiniaturaRef = null;
+      // corregir indices de miniatraRef.pendingIndex posteriores
+      if (state.formMiniaturaRef && !state.formMiniaturaRef.existing &&
+          Number(state.formMiniaturaRef.pendingIndex) > i) {
+        state.formMiniaturaRef = {
+          existing: false,
+          pendingIndex: Number(state.formMiniaturaRef.pendingIndex) - 1
+        };
+      }
+      renderPendingFiles(state.formPendingFiles, state.formMiniaturaRef);
     });
     $('#fileListExisting').addEventListener('click', e => {
+      const thumbBtn = e.target.closest('[data-set-thumb]');
+      if (thumbBtn) {
+        const [kind, id] = String(thumbBtn.dataset.setThumb).split(':');
+        if (state.formMiniaturaRef && state.formMiniaturaRef.existing &&
+            String(state.formMiniaturaRef.id) === String(id)) {
+          state.formMiniaturaRef = null;
+        } else {
+          state.formMiniaturaRef = { existing: true, id };
+        }
+        renderPendingFiles(state.formPendingFiles, state.formMiniaturaRef);
+        renderExistingFiles(state.formExistingFiles, state.formMiniaturaRef);
+        return;
+      }
       const btn = e.target.closest('[data-remove-existing]');
       if (!btn) return;
       const id = btn.dataset.removeExisting;
+      const wasMini = state.formMiniaturaRef && state.formMiniaturaRef.existing &&
+                      String(state.formMiniaturaRef.id) === String(id);
       state.formRemovedExistingFileIds.add(id);
       state.formExistingFiles = state.formExistingFiles.filter(f => String(f.id) !== String(id));
-      renderExistingFiles(state.formExistingFiles);
+      if (wasMini) state.formMiniaturaRef = null;
+      renderExistingFiles(state.formExistingFiles, state.formMiniaturaRef);
     });
 
     $('#obraForm').addEventListener('submit', e => { e.preventDefault(); guardarObra(); });
