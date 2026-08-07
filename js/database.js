@@ -29,6 +29,7 @@ const Database = (() => {
       lugar: obra.lugar,
       autor: obra.autor,
       detalles: obra.detalles,
+      miniatura_archivo_id: obra.miniatura_archivo_id || null,
       created_at: obra.created_at,
       etiquetas: (obra.obra_etiquetas || [])
         .filter(r => r && r.etiquetas)
@@ -70,18 +71,60 @@ const Database = (() => {
     return data;
   }
 
+  async function insertArchivosBatch(obraId, archivos) {
+    if (!archivos || !archivos.length) return [];
+    const fileRows = archivos.map(f => ({
+      obra_id: obraId,
+      nombre_original: f.nombre_original,
+      ruta_storage: f.ruta_storage,
+      tipo_mime: f.tipo_mime
+    }));
+    const { data, error } = await supabase()
+      .from('archivos')
+      .insert(fileRows)
+      .select('*');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function setObraMiniatura(obraId, miniaturaArchivoId) {
+    const { error } = await supabase()
+      .from('obras')
+      .update({ miniatura_archivo_id: miniaturaArchivoId || null })
+      .eq('id', obraId);
+    if (error) throw error;
+    return true;
+  }
+
+  function resolveMiniaturaId(ref, mapPendingToInserted, existingArchivos) {
+    if (!ref) return null;
+    if (ref.existing) {
+      const match = existingArchivos?.find(a => String(a.id) === String(ref.id));
+      return match ? match.id : null;
+    } else {
+      const idx = Number(ref.pendingIndex);
+      if (Number.isFinite(idx) && mapPendingToInserted[idx]) {
+        return mapPendingToInserted[idx].id;
+      }
+      return null;
+    }
+  }
+
   async function createObra(payload) {
-    const { etiquetas, archivos, ...obraData } = payload;
+    const { etiquetas, archivos, miniaturaRef, ...obraData } = payload;
+
+    const obraInsert = {
+      nombre: obraData.nombre,
+      fecha_inicio: obraData.fecha_inicio,
+      fecha_fin: obraData.fecha_fin || null,
+      lugar: obraData.lugar,
+      autor: obraData.autor,
+      detalles: obraData.detalles || null,
+      miniatura_archivo_id: null
+    };
     const { data, error } = await supabase()
       .from('obras')
-      .insert({
-        nombre: obraData.nombre,
-        fecha_inicio: obraData.fecha_inicio,
-        fecha_fin: obraData.fecha_fin || null,
-        lugar: obraData.lugar,
-        autor: obraData.autor,
-        detalles: obraData.detalles || null
-      })
+      .insert(obraInsert)
       .select()
       .single();
     if (error) throw error;
@@ -93,21 +136,18 @@ const Database = (() => {
       if (linkError) throw linkError;
     }
 
-    if (archivos && archivos.length) {
-      const fileRows = archivos.map(f => ({
-        obra_id: obraId,
-        nombre_original: f.nombre_original,
-        ruta_storage: f.ruta_storage,
-        tipo_mime: f.tipo_mime
-      }));
-      const { error: fileError } = await supabase().from('archivos').insert(fileRows);
-      if (fileError) throw fileError;
-    }
+    const insertedArchivos = await insertArchivosBatch(obraId, archivos || []);
+    const mapPendingToInserted = (archivos || []).map((_, i) => insertedArchivos[i] || null);
+
+    const miniaturaId = resolveMiniaturaId(miniaturaRef, mapPendingToInserted, []);
+    if (miniaturaId) await setObraMiniatura(obraId, miniaturaId);
+
     return (await getAllObras()).find(o => o.id === obraId);
   }
 
-  async function updateObra(obraId, payload, etiquetasToRemove = [], archivosToRemove = [], newArchivos = []) {
-    const { etiquetas, archivos, ...obraData } = payload;
+  async function updateObra(obraId, payload, etiquetasToRemove = [], archivosToRemove = [], newArchivos = [], miniaturaRef = null) {
+    const { etiquetas, archivos, miniatura, ...obraData } = payload;
+
     const { error } = await supabase()
       .from('obras')
       .update({
@@ -145,16 +185,14 @@ const Database = (() => {
         .from('archivos').delete().in('id', archivosToRemove);
       if (fae) throw fae;
     }
-    if (newArchivos && newArchivos.length) {
-      const fileRows = newArchivos.map(f => ({
-        obra_id: obraId,
-        nombre_original: f.nombre_original,
-        ruta_storage: f.ruta_storage,
-        tipo_mime: f.tipo_mime
-      }));
-      const { error: fie } = await supabase().from('archivos').insert(fileRows);
-      if (fie) throw fie;
-    }
+    const insertedNuevos = await insertArchivosBatch(obraId, newArchivos || []);
+    const mapPendingToInserted = (newArchivos || []).map((_, i) => insertedNuevos[i] || null);
+
+    const keptExisting = (current?.archivos || [])
+      .filter(a => !(archivosToRemove || []).some(rid => String(rid) === String(a.id)));
+
+    const miniaturaId = resolveMiniaturaId(miniaturaRef, mapPendingToInserted, keptExisting);
+    await setObraMiniatura(obraId, miniaturaId || null);
 
     return (await getAllObras()).find(o => o.id === obraId);
   }
@@ -196,3 +234,4 @@ const Database = (() => {
 })();
 
 window.Database = Database;
+
