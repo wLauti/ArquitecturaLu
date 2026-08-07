@@ -361,7 +361,7 @@
     });
 
     document.addEventListener('click', e => {
-      if (e.target.hasAttribute('data-close-modal')) closeAllModals();
+      if (e.target.closest('[data-close-modal]')) closeAllModals();
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeAllModals();
@@ -405,7 +405,27 @@
     $('#obraForm').addEventListener('submit', e => { e.preventDefault(); guardarObra(); });
   }
 
+  function gateUnlocked() {
+    try { return !!localStorage.getItem('codigoLu'); } catch(e) { return false; }
+  }
+
+  function bindGate() {
+    const overlay = document.getElementById('gateOverlay');
+    if (!overlay) return;
+    if (gateUnlocked()) {
+      overlay.classList.add('hidden');
+      return;
+    }
+    document.body.style.overflow = 'hidden';
+    console.log('%c🔒 Acceso restringido', 'font-size:14px;font-weight:700;color:#dc2626;');
+    console.log('%cPara desbloquear la página, ejecuta en la consola:', 'color:#44403c;font-weight:600;');
+    console.log("%clocalStorage.setItem('codigoLu', 'TU_CODIGO_AQUI')", 'background:#f5f5f4;padding:6px 10px;border-radius:6px;font-family:monospace;color:#1c1917;');
+    console.log('%cLuego recarga la página. Para volver a bloquear: localStorage.removeItem("codigoLu")', 'color:#78716c;font-size:12px;');
+  }
+
   function boot() {
+    bindGate();
+    if (!gateUnlocked()) return;
     initSupabase();
     if (localStorage.getItem('lu_editMode') === '1') setEditMode(true);
     bindUI();
