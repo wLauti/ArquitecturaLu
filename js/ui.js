@@ -14,7 +14,8 @@ const UI = (() => {
       check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
       alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
       info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
-      empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6"/></svg>'
+      empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6"/></svg>',
+      star: '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
     };
     return icons[name] || '';
   }
@@ -66,8 +67,31 @@ const UI = (() => {
     return String(a || b);
   }
 
+  function isImageFile(f) {
+    if (!f) return false;
+    const mime = f.tipo_mime || f.type || '';
+    const name = f.nombre_original || f.name || '';
+    return Storage.classifyFile(mime, name) === 'image';
+  }
+
   function firstImage(obra) {
-    return (obra.archivos || []).find(f => Storage.classifyFile(f.tipo_mime, f.nombre_original) === 'image');
+    const archivos = obra.archivos || [];
+    if (obra.miniatura_archivo_id) {
+      const elegido = archivos.find(f => String(f.id) === String(obra.miniatura_archivo_id));
+      if (elegido && isImageFile(elegido)) return elegido;
+    }
+    return archivos.find(f => isImageFile(f));
+  }
+
+  function miniaturaIsSelected(miniaturaRef, kind, idOrIndex) {
+    if (!miniaturaRef) return false;
+    if (kind === 'existing' && miniaturaRef.existing) {
+      return String(miniaturaRef.id) === String(idOrIndex);
+    }
+    if (kind === 'pending' && !miniaturaRef.existing) {
+      return Number(miniaturaRef.pendingIndex) === Number(idOrIndex);
+    }
+    return false;
   }
 
   function renderObrasGrid(obras, editMode = false) {
@@ -156,38 +180,59 @@ const UI = (() => {
     return `<div class="file-icon ${kind}">${label}</div>`;
   }
 
-  function renderPendingFiles(files) {
+  function miniaturaToggleBtn(kind, idOrIndex, selected, fileIsImage) {
+    if (!fileIsImage) return '';
+    const klass = selected
+      ? 'file-thumb-toggle selected'
+      : 'file-thumb-toggle';
+    const title = selected ? 'Miniatura seleccionada · clic para quitar' : 'Usar como miniatura (portada)';
+    return `
+      <button type="button" class="${klass}"
+              title="${title}"
+              data-set-thumb="${kind}:${idOrIndex}">
+        ${icon('star')}
+      </button>
+    `;
+  }
+
+  function renderPendingFiles(files, miniaturaRef = null) {
     const wrap = $('#fileListPending');
     if (!wrap) return;
     if (!files.length) { wrap.innerHTML = ''; return; }
     wrap.innerHTML = files.map((f, i) => {
       const kind = Storage.classifyFile(f.type, f.name);
+      const selected = miniaturaIsSelected(miniaturaRef, 'pending', i);
+      const selKlass = selected ? 'selected' : '';
       return `
-        <div class="file-item" data-pending-index="${i}">
+        <div class="file-item ${selKlass}" data-pending-index="${i}">
           ${fileIconHtml(kind, f.name.split('.').pop())}
           <div class="file-info">
             <div class="file-name">${escapeHtml(f.name)}</div>
-            <div class="file-size">${Storage.formatBytes(f.size)} · nuevo</div>
+            <div class="file-size">${Storage.formatBytes(f.size)} · nuevo${selected ? ' · <b>Miniatura</b>' : ''}</div>
           </div>
+          ${miniaturaToggleBtn('pending', i, selected, kind === 'image')}
           <button type="button" class="file-remove" data-remove-pending="${i}" title="Quitar">${icon('close')}</button>
         </div>
       `;
     }).join('');
   }
 
-  function renderExistingFiles(files) {
+  function renderExistingFiles(files, miniaturaRef = null) {
     const wrap = $('#fileListExisting');
     if (!wrap) return;
     if (!files.length) { wrap.innerHTML = ''; return; }
     wrap.innerHTML = files.map(f => {
       const kind = Storage.classifyFile(f.tipo_mime, f.nombre_original);
+      const selected = miniaturaIsSelected(miniaturaRef, 'existing', f.id);
+      const selKlass = selected ? 'selected' : '';
       return `
-        <div class="file-item" data-existing-id="${f.id}">
+        <div class="file-item ${selKlass}" data-existing-id="${f.id}">
           ${fileIconHtml(kind, f.nombre_original.split('.').pop())}
           <div class="file-info">
             <div class="file-name">${escapeHtml(f.nombre_original)}</div>
-            <div class="file-size">existente</div>
+            <div class="file-size">existente${selected ? ' · <b>Miniatura</b>' : ''}</div>
           </div>
+          ${miniaturaToggleBtn('existing', f.id, selected, kind === 'image')}
           <button type="button" class="file-remove" data-remove-existing="${f.id}" title="Quitar al guardar">${icon('close')}</button>
         </div>
       `;
@@ -202,7 +247,7 @@ const UI = (() => {
 
     title.textContent = obra.nombre;
 
-    const images = (obra.archivos || []).filter(f => Storage.classifyFile(f.tipo_mime, f.nombre_original) === 'image');
+    const images = (obra.archivos || []).filter(f => isImageFile(f));
     const pdfs = (obra.archivos || []).filter(f => Storage.classifyFile(f.tipo_mime, f.nombre_original) === 'pdf');
     const otros = (obra.archivos || []).filter(f => {
       const k = Storage.classifyFile(f.tipo_mime, f.nombre_original);
@@ -215,8 +260,10 @@ const UI = (() => {
         <div class="detail-gallery">
           ${images.map(img => {
             const url = Storage.getPublicUrl(img.ruta_storage);
-            return `<a class="detail-gallery-item" href="${escapeHtml(url)}" target="_blank" rel="noopener">
+            const isCover = String(obra.miniatura_archivo_id) === String(img.id);
+            return `<a class="detail-gallery-item ${isCover ? 'is-cover' : ''}" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="${isCover ? 'Portada' : ''}">
               <img src="${escapeHtml(url)}" alt="${escapeHtml(img.nombre_original)}" loading="lazy">
+              ${isCover ? '<span class="cover-badge">Portada</span>' : ''}
             </a>`;
           }).join('')}
         </div>
@@ -233,7 +280,7 @@ const UI = (() => {
               <div>
                 <div style="margin-bottom:8px;font-size:14px;font-weight:500;color:var(--color-text-muted)">${escapeHtml(p.nombre_original)}</div>
                 <iframe class="pdf-embed" src="${escapeHtml(url)}#toolbar=1" title="${escapeHtml(p.nombre_original)}"></iframe>
-                <div style="margin-top:8px;"><a class="btn btn-outline btn-sm" href="${escapeHtml(url)}" target="_blank" rel="noopener">${icon('download')} Abrir PDF en nueva pestaña</a></div>
+                <div style="margin-top:8px;"><a class="btn btn-outline" href="${escapeHtml(url)}" target="_blank" rel="noopener" style="font-size:13px;padding:8px 14px;">${icon('download')} Abrir PDF en nueva pestaña</a></div>
               </div>
             `;
           }).join('')}
@@ -320,7 +367,7 @@ const UI = (() => {
 
   return {
     $, $$, icon, showToast, openModal, closeModal, closeAllModals,
-    escapeHtml, fechaLabel,
+    escapeHtml, fechaLabel, isImageFile, miniaturaIsSelected,
     renderObrasGrid, renderTagFilterList, renderTagSelectList,
     renderPendingFiles, renderExistingFiles, renderDetail
   };
