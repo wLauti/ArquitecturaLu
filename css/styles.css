@@ -1089,6 +1089,66 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
+.gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background:
+    radial-gradient(1200px 700px at 10% 0%, rgba(28,25,23,0.06), transparent 60%),
+    radial-gradient(900px 600px at 90% 100%, rgba(68,64,60,0.08), transparent 60%),
+    var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.gate-overlay.hidden {
+  display: none;
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  padding: 56px 32px;
+  animation: gateIn 0.4s var(--ease);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 22px;
+}
+
+@keyframes gateIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.gate-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+}
+
+.gate-brand svg {
+  width: 52px;
+  height: 52px;
+}
+
+.gate-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0;
+}
+
 @media (max-width: 768px) {
   .container { padding: 0 16px; }
   .header-content { height: 64px; }
