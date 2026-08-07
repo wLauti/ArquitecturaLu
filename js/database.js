@@ -5,43 +5,60 @@ const Database = (() => {
     return s;
   }
 
-  async function getAllObras() {
-    const { data, error } = await supabase()
-      .from('obras')
-      .select(`
-        *,
-        obra_etiquetas(
-          etiquetas(id, nombre)
-        ),
-        archivos(id, nombre_original, ruta_storage, tipo_mime)
-      `)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data.map(normalizeObra);
-  }
+async function getAllObras() {
+  const { data, error } = await supabase()
+    .from('obras')
+    .select(`
+      *,
+      obra_etiquetas(
+        etiquetas(id, nombre)
+      ),
+      archivos!archivos_obra_id_fkey(
+        id,
+        nombre_original,
+        ruta_storage,
+        tipo_mime
+      ),
+      miniatura:archivos!obras_miniatura_archivo_id_fkey(
+        id,
+        nombre_original,
+        ruta_storage,
+        tipo_mime
+      )
+    `)
+    .order('created_at', { ascending: false });
 
-  function normalizeObra(obra) {
-    return {
-      id: obra.id,
-      nombre: obra.nombre,
-      fecha_inicio: obra.fecha_inicio,
-      fecha_fin: obra.fecha_fin,
-      lugar: obra.lugar,
-      autor: obra.autor,
-      detalles: obra.detalles,
-      miniatura_archivo_id: obra.miniatura_archivo_id || null,
-      created_at: obra.created_at,
-      etiquetas: (obra.obra_etiquetas || [])
-        .filter(r => r && r.etiquetas)
-        .map(r => ({ id: r.etiquetas.id, nombre: r.etiquetas.nombre })),
-      archivos: (obra.archivos || []).map(a => ({
-        id: a.id,
-        nombre_original: a.nombre_original,
-        ruta_storage: a.ruta_storage,
-        tipo_mime: a.tipo_mime
-      }))
-    };
-  }
+  if (error) throw error;
+
+  return data.map(normalizeObra);
+}
+
+function normalizeObra(obra) {
+  return {
+    id: obra.id,
+    nombre: obra.nombre,
+    fecha_inicio: obra.fecha_inicio,
+    fecha_fin: obra.fecha_fin,
+    lugar: obra.lugar,
+    autor: obra.autor,
+    detalles: obra.detalles,
+    miniatura_archivo_id: obra.miniatura_archivo_id || null,
+    miniatura: obra.miniatura || null,
+    created_at: obra.created_at,
+    etiquetas: (obra.obra_etiquetas || [])
+      .filter(r => r && r.etiquetas)
+      .map(r => ({
+        id: r.etiquetas.id,
+        nombre: r.etiquetas.nombre
+      })),
+    archivos: (obra.archivos || []).map(a => ({
+      id: a.id,
+      nombre_original: a.nombre_original,
+      ruta_storage: a.ruta_storage,
+      tipo_mime: a.tipo_mime
+    }))
+  };
+}
 
   async function getAllEtiquetas() {
     const { data, error } = await supabase()
@@ -234,4 +251,3 @@ const Database = (() => {
 })();
 
 window.Database = Database;
-
